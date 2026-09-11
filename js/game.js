@@ -99,6 +99,13 @@ window.NoDog = window.NoDog || {};
     };
   }
 
+  /* 出題の優先度。狙いの trick ちょうど（距離0）と、その隣（距離1）は
+     同じ段に置く。近い順に詰めると距離0 だけで枠が埋まり、素材の半分が
+     一生出番を持たないため。距離2 以上は面の難度が崩れるので後回しのまま。 */
+  function tier(trick, target) {
+    return Math.max(0, Math.abs(trick - target) - 1);
+  }
+
   /* 各面 12 問。実画像が足りない分はダミーで埋めるので、
      images.csv が空でも 60 問の一本道が通る。 */
   function buildDeck(entries) {
@@ -106,7 +113,9 @@ window.NoDog = window.NoDog || {};
     for (var lv = 1; lv <= STAGES.length; lv++) {
       var target = STAGES[lv - 1].targetTrick;
       var pool = shuffle(entries.filter(function (e) { return e.level === lv; }));
-      pool.sort(function (a, b) { return Math.abs(a.trick - target) - Math.abs(b.trick - target); });
+      /* sort は安定なので、同じ段の中は直前の shuffle の順がそのまま残る。
+         つまり距離0 と距離1 をひとまとめにした中から無作為に取ることになる。 */
+      pool.sort(function (a, b) { return tier(a.trick, target) - tier(b.trick, target); });
 
       var picked = pool.slice(0, PER_STAGE);
       while (picked.length < PER_STAGE && pool.length > 0) picked.push(pool[picked.length % pool.length]);
