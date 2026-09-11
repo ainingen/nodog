@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<title>犬か。犬以外か。</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%F0%9F%90%95%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#14110f; --fg:#f6f1e8; --sub:#a99e90; --line:#2e2823;
+  --dog:#6ec06e; --not:#e0604a; --accent:#f2c14e;
+}
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  background:var(--bg); color:var(--fg); overflow:hidden;
+  font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,system-ui,sans-serif;
+  user-select:none; -webkit-user-select:none; touch-action:manipulation;
+}
+#app{position:fixed; inset:0; display:flex; flex-direction:column;}
+.hidden{display:none !important;}
+
+/* --- HUD --- */
+#hud{
+  flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+  gap:8px; padding:10px 14px; padding-top:calc(10px + env(safe-area-inset-top));
+  font-variant-numeric:tabular-nums;
+}
+#hud .col{display:flex; flex-direction:column; gap:2px; min-width:0;}
+#hud .col.right{align-items:flex-end;}
+#stageName{font-size:14px; color:var(--accent); font-weight:700; white-space:nowrap;}
+#qCount,#comboLabel{font-size:11px; color:var(--sub);}
+#life{font-size:18px; letter-spacing:2px;}
+#score{font-size:20px; font-weight:700;}
+#comboLabel.hot{color:var(--accent); font-weight:700; font-size:13px;}
+
+/* --- プレイ画面 --- */
+#play{flex:1 1 auto; display:flex; flex-direction:column; align-items:center;
+      justify-content:center; gap:14px; padding:0 14px; min-height:0;}
+.stage-wrap{position:relative; width:min(88vw,min(58vh,512px)); aspect-ratio:1/1;}
+#stage{width:100%; height:100%; display:block; border-radius:14px;
+       background:#000; box-shadow:0 10px 40px rgba(0,0,0,.55);}
+#verdict{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-size:clamp(28px,8vw,56px); font-weight:900; letter-spacing:.02em;
+  border-radius:14px; background:rgba(10,8,7,.72); text-shadow:0 2px 12px rgba(0,0,0,.8);
+}
+#verdict.dog{color:var(--dog);} #verdict.not{color:var(--not);}
+#verdict.miss{color:#fff; background:rgba(140,20,10,.78);}
+.timebar{width:min(88vw,min(58vh,512px)); height:10px; border-radius:5px;
+         background:var(--line); overflow:hidden;}
+#bar{height:100%; width:100%; background:var(--accent); transform-origin:left center;}
+#bar.danger{background:var(--not);}
+
+/* --- 全画面のオーバーレイ（タイトル / 結果） --- */
+.screen{
+  position:absolute; inset:0; z-index:5; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:16px;
+  padding:24px 18px; background:var(--bg); text-align:center; overflow-y:auto;
+}
+.title{font-size:clamp(34px,11vw,64px); font-weight:900; line-height:1.15;}
+.title small{display:block; font-size:.3em; color:var(--sub); font-weight:400;
+             letter-spacing:.3em; margin-bottom:.8em;}
+.tap{color:var(--sub); font-size:14px; animation:blink 1.4s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1} 50%{opacity:.25}}
+.guide{display:flex; width:min(92vw,460px); border:1px solid var(--line); border-radius:12px;
+       overflow:hidden; font-size:13px; color:var(--sub);}
+.guide div{flex:1; padding:12px 6px;}
+.guide div+div{border-left:1px solid var(--line);}
+.note{font-size:11px; color:var(--sub); line-height:1.7;}
+
+.over-title{font-size:clamp(26px,8vw,44px); font-weight:900; letter-spacing:.04em;}
+.over-title.clear{color:var(--accent);}
+.over-score{font-size:clamp(36px,12vw,64px); font-weight:900; font-variant-numeric:tabular-nums;}
+.over-score small{font-size:.3em; color:var(--sub); margin-left:.3em;}
+.over-stats{font-size:13px; color:var(--sub);}
+.misses{display:flex; flex-wrap:wrap; gap:10px; justify-content:center;
+        max-width:min(94vw,560px);}
+.miss-card{width:104px;}
+.miss-card canvas{width:104px; height:104px; border-radius:8px; display:block; background:#000;}
+.miss-card p{font-size:10px; color:var(--sub); margin-top:4px; line-height:1.4;}
+#loading{position:absolute; inset:0; z-index:9; display:flex; align-items:center;
+         justify-content:center; background:var(--bg); color:var(--sub); font-size:14px;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header id="hud" class="hidden">
+    <div class="col">
+      <span id="stageName">1 入門</span>
+      <span id="qCount">1 / 12</span>
+    </div>
+    <div class="col"><span id="life">🐕🐕🐕</span></div>
+    <div class="col right">
+      <span id="score">0</span>
+      <span id="comboLabel"></span>
+    </div>
+  </header>
+
+  <main id="play" class="hidden">
+    <div class="stage-wrap">
+      <canvas id="stage" width="512" height="512"></canvas>
+      <div id="verdict" class="hidden"></div>
+    </div>
+    <div class="timebar"><div id="bar"></div></div>
+  </main>
+
+  <section id="screenTitle" class="screen hidden">
+    <h1 class="title"><small>夜中のBBQ</small>犬か。<br>犬以外か。</h1>
+    <p class="tap">タップで開始</p>
+    <div class="guide">
+      <div>← 左半分 / ← / Z / Space<br><b>犬</b></div>
+      <div>右半分 / → / X →<br><b>犬以外</b></div>
+    </div>
+    <p class="note" id="sourceNote"></p>
+  </section>
+
+  <section id="screenOver" class="screen hidden">
+    <h2 id="overTitle" class="over-title">GAME OVER</h2>
+    <p class="over-score"><span id="overScore">0</span><small>pt</small></p>
+    <p class="over-stats" id="overStats"></p>
+    <div class="misses" id="misses"></div>
+    <p class="tap">タップでリトライ</p>
+  </section>
+
+  <p id="loading">読み込み中…</p>
+</div>
+
+<script>
+'use strict';
+(function () {
+
+/* ===================================================================
+ * 面の設定。README の表がそのまま入っている。
+ * targetTrick は images.csv の trick 列(1-3)をどれくらい効かせるかの目安。
+ * =================================================================== */
+var STAGES = [
+  { name: '1 入門',         limit: 2.00, targetTrick: 1 },
+  { name: '2 なんとなく犬', limit: 1.50, targetTrick: 1 },
+  { name: '3 茶色い奴ら',   limit: 1.00, targetTrick: 2 },
+  { name: '4 尻',           limit: 0.75, targetTrick: 2 },
+  { name: '5 DOG HELL',     limit: 0.50, targetTrick: 3 }
+];
+var PER_STAGE = 12;
+var MAX_LIFE = 3;
+var VERDICT_MS = 300;   // 判定表示 0.3 秒
+var CSV_PATH = 'images.csv';
+var IMG_DIR = 'img/';
+var SIZE = 512;
+
+/* ダミー画像用のお題。images.csv が空でも一本道を通せるようにする。 */
+var DUMMY_DOGS = ['トイプードル', '柴犬の尻', 'ゴールデン', 'チワワ', 'パグ',
+                  '濡れた犬', '毛玉', 'ボルゾイ', 'シーズー', 'ダックス',
+                  '犬のような何か', '寝てる犬'];
+var DUMMY_NOTS = ['からあげ', 'モップ', '食パン', 'ぬいぐるみ', 'クロワッサン',
+                  '座布団', 'たわし', '子ヤギ', 'アルパカ', '毛布',
+                  'フライドチキン', '謎の茶色'];
+
+/* --- DOM --- */
+var $ = function (id) { return document.getElementById(id); };
+var elHud = $('hud'), elPlay = $('play'), elStage = $('stage'),
+    elVerdict = $('verdict'), elBar = $('bar'),
+    elStageName = $('stageName'), elQCount = $('qCount'), elLife = $('life'),
+    elScore = $('score'), elCombo = $('comboLabel'),
+    elTitle = $('screenTitle'), elOver = $('screenOver'), elLoading = $('loading'),
+    elOverTitle = $('overTitle'), elOverScore = $('overScore'),
+    elOverStats = $('overStats'), elMisses = $('misses'), elSourceNote = $('sourceNote');
+var ctx = elStage.getContext('2d');
+
+/* ===================================================================
+ * CSV
+ * =================================================================== */
+
+/* images.csv は値にカンマも改行も入れない運用（README 参照）。 */
+function parseCsv(text) {
+  var lines = text.replace(/^﻿/, '').replace(/\r\n?/g, '\n').split('\n');
+  var header = null, rows = [];
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line || line.charAt(0) === '#') continue;
+    var cols = line.split(',').map(function (s) { return s.trim(); });
+    if (!header) { header = cols; continue; }
+    var row = {};
+    for (var c = 0; c < header.length; c++) row[header[c]] = cols[c] || '';
+    rows.push(row);
+  }
+  return rows;
+}
+
+/* CSV 1 行を出題データにする。おかしい行は捨てる。 */
+function toEntry(row) {
+  if (!row.filename) return null;
+  var answer = row.answer === 'dog' ? 'dog' : row.answer === 'not' ? 'not' : null;
+  if (!answer) return null;
+  var level = parseInt(row.level, 10);
+  if (!(level >= 1 && level <= STAGES.length)) return null;
+  var trick = parseInt(row.trick, 10);
+  return {
+    filename: row.filename,
+    answer: answer,
+    level: level,
+    trick: (trick >= 1 && trick <= 3) ? trick : 1,
+    dummy: false,
+    /* ダミーに落ちたときだけ使う表示名。 */
+    label: row.filename.replace(/^(dog|not)_\d+_/, '').replace(/\.\w+$/, '')
+  };
+}
+
+function loadCsv() {
+  return fetch(CSV_PATH, { cache: 'no-cache' })
+    .then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.text();
+    })
+    .then(function (text) {
+      return parseCsv(text).map(toEntry).filter(Boolean);
+    })
+    .catch(function (err) {
+      /* file:// で直接開くと fetch が失敗する。その場合は全部ダミーで動かす。 */
+      console.warn('[nodog] ' + CSV_PATH + ' を読めませんでした:', err.message);
+      return [];
+    });
+}
+
+/* ===================================================================
+ * 画像（実画像とダミー）
+ * =================================================================== */
+
+/* FNV-1a。色決めにしか使わないので強度は不要。 */
+function hash(str) {
+  var h = 2166136261;
+  for (var i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = (h + (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) >>> 0;
+  }
+  return h >>> 0;
+}
+
+/* 日本語なので単語境界は使わず 1 文字ずつ詰める。 */
+function wrap(c, text, maxWidth) {
+  var lines = [], line = '';
+  for (var i = 0; i < text.length; i++) {
+    var next = line + text[i];
+    if (line && c.measureText(next).width > maxWidth) { lines.push(line); line = text[i]; }
+    else { line = next; }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+/* ダミー画像を 1 枚描く。色は filename のハッシュから決める。
+   答え(dog/not)と色を相関させると見た目で解けてしまうので、そうしない。 */
+function drawDummy(entry) {
+  var cv = document.createElement('canvas');
+  cv.width = cv.height = SIZE;
+  var c = cv.getContext('2d');
+  var h = hash(entry.filename);
+
+  var hue = h % 360;
+  var sat = 35 + (h >> 9) % 30;
+  var lit = 32 + (h >> 17) % 26;
+  c.fillStyle = 'hsl(' + hue + ',' + sat + '%,' + lit + '%)';
+  c.fillRect(0, 0, SIZE, SIZE);
+
+  /* 平坦すぎると見分けがつかないので、内側にもう一枚四角を置く。 */
+  var pad = 52 + (h >> 5) % 40;
+  c.fillStyle = 'hsl(' + ((hue + 40 + (h >> 3) % 120) % 360) + ',' + sat + '%,' +
+                Math.min(78, lit + 22) + '%)';
+  c.fillRect(pad, pad, SIZE - pad * 2, SIZE - pad * 2);
+
+  c.fillStyle = 'rgba(0,0,0,.55)';
+  c.fillRect(0, SIZE * 0.34, SIZE, SIZE * 0.32);
+
+  c.fillStyle = '#fff';
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.font = '700 52px "Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif';
+  var lines = wrap(c, entry.label || entry.filename, SIZE - 72);
+  var lh = 60, top = SIZE / 2 - (lines.length - 1) * lh / 2;
+  for (var i = 0; i < lines.length; i++) c.fillText(lines[i], SIZE / 2, top + i * lh);
+
+  c.font = '400 22px system-ui,sans-serif';
+  c.fillStyle = 'rgba(255,255,255,.55)';
+  c.fillText('DUMMY', SIZE / 2, SIZE - 40);
+  return cv;
+}
+
+/* entry.image に drawImage できるものを必ず入れる。
+   実画像が無い・読めないときは黙ってダミーに落とす。 */
+function prepare(entry) {
+  if (entry.dummy) { entry.image = drawDummy(entry); return Promise.resolve(entry); }
+  return new Promise(function (resolve) {
+    var img = new Image();
+    img.onload = function () { entry.image = img; resolve(entry); };
+    img.onerror = function () {
+      console.warn('[nodog] ' + IMG_DIR + entry.filename + ' を読めないのでダミーにします');
+      entry.dummy = true;
+      entry.image = drawDummy(entry);
+      resolve(entry);
+    };
+    img.src = IMG_DIR + entry.filename;
+  });
+}
+
+/* ===================================================================
+ * 出題順
+ * =================================================================== */
+
+function shuffle(arr) {
+  for (var i = arr.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  return arr;
+}
+
+var dummySeq = 0;
+function makeDummy(level, answer) {
+  var pool = answer === 'dog' ? DUMMY_DOGS : DUMMY_NOTS;
+  var label = pool[dummySeq % pool.length];
+  dummySeq++;
+  return {
+    filename: (answer === 'dog' ? 'dog' : 'not') + '_d' + dummySeq + '_' + level,
+    answer: answer, level: level, trick: STAGES[level - 1].targetTrick,
+    dummy: true, label: label
+  };
+}
+
+/* 各面 12 問。実画像が足りない分はダミーで埋めるので、
+   images.csv が空でも 60 問の一本道が通る。 */
+function buildDeck(entries) {
+  var deck = [];
+  for (var lv = 1; lv <= STAGES.length; lv++) {
+    var target = STAGES[lv - 1].targetTrick;
+    var pool = shuffle(entries.filter(function (e) { return e.level === lv; }));
+    /* ひっかけ度が面の狙いに近いものから採る。 */
+    pool.sort(function (a, b) { return Math.abs(a.trick - target) - Math.abs(b.trick - target); });
+
+    var picked = pool.slice(0, PER_STAGE);
+    /* 同じ面の在庫が 12 未満なら、まず手持ちを使い回す。 */
+    while (picked.length < PER_STAGE && pool.length > 0) {
+      picked.push(pool[picked.length % pool.length]);
+    }
+    /* それでも足りない（= 在庫ゼロ）ならダミーで埋める。 */
+    var i = 0;
+    while (picked.length < PER_STAGE) {
+      picked.push(makeDummy(lv, (i + lv) % 2 === 0 ? 'dog' : 'not'));
+      i++;
+    }
+    deck = deck.concat(shuffle(picked));
+  }
+  return deck;
+}
+
+/* ===================================================================
+ * ゲーム本体
+ * =================================================================== */
+
+var state = null;
+var rafId = 0;
+
+function newState(deck) {
+  return {
+    deck: deck, index: 0, score: 0, combo: 0, bestCombo: 0,
+    life: MAX_LIFE, correct: 0, misses: [],
+    phase: 'title',      // title | question | verdict | over
+    startedAt: 0, limit: 0
+  };
+}
+
+function comboMultiplier(combo) {
+  return Math.min(3.0, 1.0 + Math.floor(combo / 10) * 0.5);
+}
+
+function drawEntry(entry) {
+  ctx.clearRect(0, 0, SIZE, SIZE);
+  if (!entry.image) return;
+  /* 実画像は正方形前提（tools/process_raw.py が中央正方形に切っている）。
+     万一比率が違っても、はみ出さないように収める。 */
+  var iw = entry.image.width || SIZE, ih = entry.image.height || SIZE;
+  var scale = Math.min(SIZE / iw, SIZE / ih);
+  var w = iw * scale, h = ih * scale;
+  ctx.drawImage(entry.image, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+}
+
+function renderHud() {
+  var stageIdx = Math.min(STAGES.length - 1, Math.floor(state.index / PER_STAGE));
+  elStageName.textContent = STAGES[stageIdx].name;
+  elQCount.textContent = (state.index % PER_STAGE + 1) + ' / ' + PER_STAGE +
+                         '（通算 ' + (state.index + 1) + ' / ' + state.deck.length + '）';
+  elLife.textContent = new Array(state.life + 1).join('🐕') +
+                       new Array(MAX_LIFE - state.life + 1).join('🦴');
+  elScore.textContent = state.score;
+  if (state.combo >= 2) {
+    var mul = comboMultiplier(state.combo);
+    elCombo.textContent = state.combo + ' COMBO' + (mul > 1 ? ' ×' + mul.toFixed(1) : '');
+    elCombo.className = (state.combo % 10 === 0) ? 'hot' : '';
+  } else {
+    elCombo.textContent = '';
+    elCombo.className = '';
+  }
+}
+
+function nextQuestion() {
+  if (state.index >= state.deck.length) { finish(true); return; }
+  var stageIdx = Math.min(STAGES.length - 1, Math.floor(state.index / PER_STAGE));
+  state.limit = STAGES[stageIdx].limit * 1000;
+  state.startedAt = performance.now();
+  state.phase = 'question';
+
+  drawEntry(state.deck[state.index]);
+  elVerdict.classList.add('hidden');
+  elBar.classList.remove('danger');
+  elBar.style.transform = 'scaleX(1)';
+  renderHud();
+
+  cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(tick);
+}
+
+function tick(now) {
+  if (state.phase !== 'question') return;
+  var left = 1 - (now - state.startedAt) / state.limit;
+  if (left <= 0) { judge(null); return; }
+  elBar.style.transform = 'scaleX(' + left + ')';
+  if (left < 0.3) elBar.classList.add('danger');
+  rafId = requestAnimationFrame(tick);
+}
+
+/* choice: 'dog' | 'not' | null(時間切れ) */
+function judge(choice) {
+  if (state.phase !== 'question') return;
+  cancelAnimationFrame(rafId);
+  state.phase = 'verdict';
+
+  var entry = state.deck[state.index];
+  var elapsed = performance.now() - state.startedAt;
+  var left = Math.max(0, 1 - elapsed / state.limit);
+  var ok = choice === entry.answer;
+
+  if (ok) {
+    state.combo++;
+    state.bestCombo = Math.max(state.bestCombo, state.combo);
+    state.correct++;
+    var mul = comboMultiplier(state.combo);
+    state.score += Math.round((100 + Math.round(left * 100)) * mul);
+    elVerdict.textContent = entry.answer === 'dog' ? 'DOG! 🐕' : 'NOT DOG!';
+    elVerdict.className = entry.answer === 'dog' ? 'dog' : 'not';
+  } else {
+    state.combo = 0;
+    state.life--;
+    state.misses.push({ entry: entry, choice: choice });
+    elVerdict.textContent = choice === null ? 'TIME UP' : 'MISS';
+    elVerdict.className = 'miss';
+  }
+
+  elBar.style.transform = 'scaleX(' + left + ')';
+  renderHud();
+  elVerdict.classList.remove('hidden');
+
+  setTimeout(function () {
+    state.index++;
+    if (state.life <= 0) finish(false);
+    else nextQuestion();
+  }, VERDICT_MS);
+}
+
+/* ===================================================================
+ * 画面遷移
+ * =================================================================== */
+
+function showTitle() {
+  state.phase = 'title';
+  elHud.classList.add('hidden');
+  elPlay.classList.add('hidden');
+  elOver.classList.add('hidden');
+  elTitle.classList.remove('hidden');
+}
+
+function start() {
+  state = newState(state.deck);
+  state.phase = 'question';
+  elTitle.classList.add('hidden');
+  elOver.classList.add('hidden');
+  elHud.classList.remove('hidden');
+  elPlay.classList.remove('hidden');
+  state.index = 0;
+  nextQuestion();
+}
+
+function finish(cleared) {
+  cancelAnimationFrame(rafId);
+  state.phase = 'over';
+  elHud.classList.add('hidden');
+  elPlay.classList.add('hidden');
+
+  elOverTitle.textContent = cleared ? 'COMPLETE' : 'GAME OVER';
+  elOverTitle.className = 'over-title' + (cleared ? ' clear' : '');
+  elOverScore.textContent = state.score;
+
+  var reached = Math.min(STAGES.length - 1, Math.floor(Math.max(0, state.index - 1) / PER_STAGE));
+  elOverStats.textContent = '到達：' + STAGES[reached].name +
+    '　正解 ' + state.correct + ' / ' + Math.min(state.index, state.deck.length) +
+    '　最大コンボ ' + state.bestCombo;
+
+  elMisses.innerHTML = '';
+  state.misses.forEach(function (m) {
+    var box = document.createElement('div');
+    box.className = 'miss-card';
+    var cv = document.createElement('canvas');
+    cv.width = cv.height = 104;
+    var c = cv.getContext('2d');
+    if (m.entry.image) c.drawImage(m.entry.image, 0, 0, 104, 104);
+    var p = document.createElement('p');
+    p.textContent = m.choice === null
+      ? 'あなたは固まりました'
+      : (m.choice === 'dog' ? 'あなたはこれを犬だと思いました'
+                            : 'あなたはこれを犬以外だと思いました');
+    box.appendChild(cv);
+    box.appendChild(p);
+    elMisses.appendChild(box);
+  });
+
+  elOver.classList.remove('hidden');
+}
+
+/* ===================================================================
+ * 入力（pointerdown に統一）
+ * =================================================================== */
+
+function act(choice) {
+  if (state.phase === 'title' || state.phase === 'over') start();
+  else if (state.phase === 'question') judge(choice);
+  /* verdict 中の入力は捨てる（連打での取りこぼし防止） */
+}
+
+document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+document.addEventListener('pointerdown', function (e) {
+  e.preventDefault();
+  var choice;
+  if (e.pointerType === 'mouse') {
+    /* PC：左クリック＝犬、右クリック＝犬以外。 */
+    choice = (e.button === 2) ? 'not' : 'dog';
+  } else {
+    /* スマホ：画面左半分＝犬、右半分＝犬以外。 */
+    choice = (e.clientX < window.innerWidth / 2) ? 'dog' : 'not';
+  }
+  act(choice);
+});
+
+document.addEventListener('keydown', function (e) {
+  if (e.repeat) return;
+  var k = e.code;
+  if (k === 'ArrowLeft' || k === 'KeyZ' || k === 'Space') { e.preventDefault(); act('dog'); }
+  else if (k === 'ArrowRight' || k === 'KeyX') { e.preventDefault(); act('not'); }
+  else if (k === 'Enter' && (state.phase === 'title' || state.phase === 'over')) { start(); }
+});
+
+/* ===================================================================
+ * 起動
+ * =================================================================== */
+
+loadCsv().then(function (entries) {
+  var deck = buildDeck(entries);
+  var real = deck.filter(function (e) { return !e.dummy; }).length;
+  elSourceNote.textContent = entries.length === 0
+    ? 'images.csv に画像がありません。ダミー画像で動かしています。'
+    : ('images.csv：' + entries.length + ' 枚を使用（出題 ' + deck.length +
+       ' 問中 ' + real + ' 問が実画像）');
+  /* 出題前に全部読み込む。PLiCy 想定なので枚数はたかが知れている。 */
+  return Promise.all(deck.map(prepare)).then(function () { return deck; });
+}).then(function (deck) {
+  state = newState(deck);
+  elLoading.classList.add('hidden');
+  showTitle();
+}).catch(function (err) {
+  console.error('[nodog] 起動に失敗:', err);
+  elLoading.textContent = '読み込みに失敗しました: ' + err.message;
+});
+
+})();
+</script>
+</body>
+</html>
