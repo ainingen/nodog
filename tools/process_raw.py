@@ -6,11 +6,13 @@
   1. raw/ の画像のファイル名からプロンプト冒頭を取り出す
      (先頭の "ainingen_" を落とし、末尾の UUID の手前まで)
   2. images_master.csv の prompt 列と前方一致で行を特定する
-  3. 中央を正方形に切り、長辺 512px の webp (品質80) を img/<filename>.webp に書く
-  4. 変換できた行の generated を 1 にする
-  5. generated=1 の行だけで images.csv (filename,answer,level,trick) を作り直す
-  6. 同じ行に候補画像が複数あったら img/_dup/ に退避して報告する
-  7. 照合できなかったファイルを一覧で報告する
+  3. その行の answer/level/trick と filename の整合を検査する
+     (--dry-run でも走るので、投入前に記入ミスを洗い出せる)
+  4. 中央を正方形に切り、長辺 512px の webp (品質80) を img/<filename>.webp に書く
+  5. 変換できた行の generated を 1 にする
+  6. generated=1 の行だけで images.csv (filename,answer,level,trick) を作り直す
+  7. 同じ行に候補画像が複数あったら img/_dup/ に退避して報告する
+  8. 照合できなかったファイル・記入ミスの行を一覧で報告する
 
 使い方:
   python tools/process_raw.py             # 実行
@@ -44,6 +46,12 @@ RAW_EXTS = (".png", ".jpg", ".jpeg", ".webp")
 
 # images.csv に書き出す列。README の仕様どおり。
 OUT_COLUMNS = ["filename", "answer", "level", "trick"]
+
+# 出力ファイル名の頭には答えを埋める規約 (dog_012_poodle.webp)。
+NAME_PREFIX_RE = re.compile(r"^(dog|not)_", re.I)
+
+# generated 列で真と見なす値。Excel は真偽値を大文字 TRUE で書くので大小は無視する。
+TRUTHY = ("1", "true")
 
 # 8-4-4-4-12 の UUID。Midjourney のファイル名末尾に付く。
 UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
@@ -112,6 +120,54 @@ def webp_name(filename):
     if ext.lower() in (".webp", ".png", ".jpg", ".jpeg"):
         return base + ".webp"
     return name + ".webp"
+
+
+def truthy(value):
+    """generated 列の真偽。Excel が書く TRUE も受け付ける。"""
+    return str(value or "").strip().lower() in TRUTHY
+
+
+def is_blank_row(row):
+    """Excel が末尾に足しがちな空行を検査対象から外す。"""
+    return not any((v or "").strip() for v in row.values())
+
+
+def validate_row(row):
+    """master の 1 行を検査して、問題の理由を並べて返す。問題なしなら空。
+
+    ここで弾かなかった誤りは images.csv に入ったあと js/assets.js に
+    黙って読み飛ばされ、出題されない理由が追えなくなる。値の誤りは
+    変換前に全部ここで捕まえる。
+    """
+    problems = []
+
+    out_name = webp_name(row.get("filename"))
+    answer = (row.get("answer") or "").strip()
+    level = (row.get("level") or "").strip()
+    trick = (row.get("trick") or "").strip()
+
+    if not out_name:
+        problems.append("filename が空")
+
+    if answer not in ("dog", "not"):
+        problems.append("answer が dog/not でない: %s" % (answer or "(空欄)"))
+
+    if not (level.isdigit() and 1 <= int(level) <= 5):
+        problems.append("level が 1〜5 の整数でない: %s" % (level or "(空欄)"))
+
+    if not (trick.isdigit() and 1 <= int(trick) <= 3):
+        problems.append("trick が 1〜3 の整数でない: %s" % (trick or "(空欄)"))
+
+    # 答えはファイル名にも埋める。食い違うと出題の正解が入れ替わってしまう。
+    if out_name:
+        m = NAME_PREFIX_RE.match(out_name)
+        if not m:
+            problems.append("filename が dog_/not_ で始まらない: %s" % out_name)
+        elif answer in ("dog", "not") and m.group(1).lower() != answer:
+            problems.append("filename と answer が矛盾: %s に answer=%s"
+                            % (out_name, answer))
+
+    return problems
 
 
 def unique_path(path):
@@ -233,6 +289,16 @@ def main(argv=None):
         print("注意: %s に %s 列がありません。%s では空欄になります。"
               % (args.master, "/".join(missing_cols), args.out))
 
+    # 記入ミスは変換前にまとめて捕まえる。画像がまだ無い行も見るので、
+    # --dry-run だけで master 全体を検算できる。
+    row_problems = {}
+    for idx, row in enumerate(rows):
+        if is_blank_row(row):
+            continue
+        found = validate_row(row)
+        if found:
+            row_problems[idx] = found
+
     # 行ごとの正規化済みプロンプトを先に用意する。
     prompts = [normalize(row.get("prompt")) for row in rows]
 
@@ -285,9 +351,11 @@ def main(argv=None):
         group = sorted(matched[idx])
         out_name = webp_name(row.get("filename"))
 
-        if not out_name:
+        # 検査を通らない行は、退避も含めて一切触らない。
+        if idx in row_problems:
             for f in group:
-                failed.append((f, "master 行 %d の filename が空" % (idx + 2)))
+                failed.append((f, "master 行 %d: %s"
+                               % (idx + 2, " / ".join(row_problems[idx]))))
             continue
 
         winner, rest = group[0], group[1:]
@@ -315,7 +383,9 @@ def main(argv=None):
             dups.append((f, out_name, os.path.relpath(target)))
 
     # --- CSV 書き出し ---
-    generated_rows = [r for r in rows if str(r.get("generated", "")).strip() in ("1", "true", "True")]
+    # 検査を通らない行は、前回の generated=1 が残っていても images.csv に出さない。
+    generated_rows = [r for i, r in enumerate(rows)
+                      if truthy(r.get("generated")) and i not in row_problems]
     generated_rows.sort(key=lambda r: (str(r.get("level", "")), str(r.get("filename", ""))))
 
     out_rows = []
@@ -338,7 +408,18 @@ def main(argv=None):
     print("raw/ の画像: %d 枚 / master: %d 行" % (len(files), len(rows)))
     print("変換: %d / 既存のためスキップ: %d / 重複退避: %d / 失敗: %d / 未照合: %d"
           % (len(converted), len(skipped), len(dups), len(failed), len(unmatched)))
+    print("master の記入ミス: %d 行" % len(row_problems))
     print("%s: generated=1 の %d 行" % (args.out, len(out_rows)))
+
+    if row_problems:
+        print("\n-- master の記入ミス (この行は変換しない) --")
+        for idx in sorted(row_problems):
+            print("  行 %d  [%s]  %s"
+                  % (idx + 2,
+                     "画像あり" if idx in matched else "画像なし",
+                     (rows[idx].get("filename") or "(filename 空欄)").strip()))
+            for why in row_problems[idx]:
+                print("      %s" % why)
 
     if converted:
         print("\n-- 変換した画像 --")
@@ -367,7 +448,7 @@ def main(argv=None):
             print("      冒頭: %s" % (head or "(取り出せず)"))
             print("      理由: %s" % why)
 
-    return 1 if (failed or unmatched) else 0
+    return 1 if (failed or unmatched or row_problems) else 0
 
 
 if __name__ == "__main__":
