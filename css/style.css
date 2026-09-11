@@ -1,0 +1,154 @@
+:root {
+  --bg: #10131a;
+  --fg: #f2f4f8;
+  --dim: #8d96a8;
+  --ok: #49d17a;
+  --ng: #ff5566;
+  --accent: #ffc53d;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+#app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 100%;
+  padding: 16px;
+  padding-block: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-bottom));
+}
+
+.hidden { display: none !important; }
+
+/* ---- HUD ---- */
+#hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(100%, 512px);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.hud-left, .hud-right { display: flex; flex-direction: column; gap: 2px; }
+.hud-right { align-items: flex-end; }
+.hud-center { font-size: 20px; letter-spacing: .08em; }
+#score { font-size: 18px; color: var(--accent); }
+.sub { font-size: 12px; font-weight: 500; color: var(--dim); }
+#combo.hot { color: var(--accent); font-size: 14px; font-weight: 800; }
+
+/* ---- プレイ画面 ---- */
+#playfield { width: min(100%, 512px); }
+
+.stage-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+}
+#stage { display: block; width: 100%; height: 100%; }
+
+.verdict {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(32px, 11vw, 64px);
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, .8);
+  background: rgba(0, 0, 0, .45);
+}
+.verdict.ok { color: var(--ok); box-shadow: inset 0 0 0 8px var(--ok); }
+.verdict.ng { color: var(--ng); box-shadow: inset 0 0 0 8px var(--ng); }
+
+.timebar {
+  width: 100%;
+  height: 10px;
+  margin-top: 10px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .12);
+  overflow: hidden;
+}
+#bar {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--ok), var(--accent));
+  transform-origin: left center;
+  transform: scaleX(1);
+}
+
+/* ---- タイトル／リザルト ---- */
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(100%, 512px);
+  text-align: center;
+}
+.title {
+  margin: 0;
+  font-size: clamp(40px, 13vw, 72px);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: .02em;
+}
+.tap {
+  margin: 0;
+  color: var(--dim);
+  font-size: 15px;
+  animation: blink 1.4s ease-in-out infinite;
+}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+
+.guide { display: flex; width: 100%; gap: 8px; opacity: .45; }
+.guide-half {
+  flex: 1;
+  padding: 18px 8px;
+  border: 1px dashed var(--dim);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.over-title { margin: 0; font-size: clamp(30px, 9vw, 48px); font-weight: 900; color: var(--ng); }
+.over-title.clear { color: var(--ok); }
+.over-score { margin: 0; font-size: 44px; font-weight: 900; color: var(--accent); }
+.over-score small { margin-left: 4px; font-size: 16px; color: var(--dim); }
+.over-stats { margin: 0; font-size: 13px; color: var(--dim); }
+.misses-note { margin: 4px 0 0; font-size: 13px; color: var(--dim); }
+
+.misses {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  max-height: 40vh;
+  padding-bottom: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.miss { flex: 0 0 120px; text-align: center; }
+.miss-thumb { width: 120px; height: 120px; border-radius: 10px; display: block; }
+.miss-cap { margin: 6px 0 0; font-size: 11px; line-height: 1.35; color: var(--fg); }
+.miss-truth { margin: 2px 0 0; font-size: 11px; font-weight: 700; color: var(--accent); }
+
+.loading { margin: 0; color: var(--dim); font-size: 14px; }

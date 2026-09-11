@@ -39,10 +39,49 @@
 
 ## 画像管理
 - ファイル名に正解を埋める：dog_012_poodle.webp / not_045_karaage.webp
-- images.csv：filename, answer(dog/not), level(1-5), trick(1-3)
+- images.csv：filename, answer(dog/not), level(1-5), trick(1-3), label
+- label はダミー画像に描く文字。実画像に差し替えたら表示には使わない。
 - プロトタイプは犬10枚・犬以外10枚から。素材はMidjourney生成。
 - 元PNGは raw/ に置き、webp変換後のみコミット。
 
 ## 技術
 - 単一HTML/JS、PLiCy制約準拠（容量・外部通信なし）。
 - 画像はwebp、正方形、事前プリロード。
+
+## プロトタイプの現状
+
+タイトル → プレイ → 0.3秒リザルト → 次問 → ゲームオーバー／全60問クリア、までが一本道で動く。
+画像はまだ用意していないので、canvas に色付きの四角と「唐揚げ」「柴犬」等の文字を描いた
+**ダミー画像**を使う（外部ファイル不要）。
+
+### 動かし方
+
+    python3 -m http.server 8000    # → http://localhost:8000
+
+`index.html` を file:// で直接開いても動く（後述のフォールバック経由）。
+
+### ファイル構成
+
+| ファイル | 役割 |
+|---|---|
+| `images.csv` | 出題リスト。**唯一の正** |
+| `js/images.js` | images.csv の取得とパース |
+| `js/images-fallback.js` | 自動生成。file:// で fetch できないとき用の同梱コピー |
+| `js/assets.js` | 画像の供給。ダミー描画と実画像読み込みの切り替え |
+| `js/game.js` | 状態遷移・判定・スコア・入力 |
+| `css/style.css` | 画面 |
+
+### images.csv を編集したら
+
+    ./tools/build-fallback.sh    # js/images-fallback.js を作り直す
+
+### ダミー画像から実画像へ
+
+`js/assets.js` の `USE_DUMMY` を `false` にすると `img/<filename>` を読む。
+読めなかった画像は自動でダミーにフォールバックするので、差し替えは1枚ずつでよい。
+ダミーの色は filename のハッシュから決めていて答え（dog/not）とは相関させていない
+——色で正解が分かるとプロトタイプの意味がなくなるため。
+
+### まだ無いもの
+
+BGM・効果音、ランキング、称号、画像のプリロード進捗表示。
