@@ -108,36 +108,20 @@ window.NoDog = window.NoDog || {};
     return cv;
   }
 
-  function roundRect(c, x, y, w, h, r) {
-    c.beginPath();
-    c.moveTo(x + r, y);
-    c.arcTo(x + w, y, x + w, y + h, r);
-    c.arcTo(x + w, y + h, x, y + h, r);
-    c.arcTo(x, y + h, x, y, r);
-    c.arcTo(x, y, x + w, y, r);
-    c.closePath();
-  }
-
   /**
    * ダミー画像を 1 枚描く。
    * 色は filename のハッシュから決める。答え(dog/not)と相関させると
-   * 色で解けてしまうので、そうしない。世界観に合わせて全部パステル。
+   * 色で解けてしまうので、そうしない。
+   * 単色1面にしているのは、内側にもう一枚置くと写真の周りに枠が
+   * 入れ子になっているように見えてしまうため。
    */
   function drawDummy(entry, ink) {
     var cv = makeOffscreen(SIZE, SIZE);
     var c = cv.getContext('2d');
     var h = hash(entry.filename);
-    var hue = h % 360;
-    var sat = 38 + (h >> 9) % 22;
 
-    c.fillStyle = 'hsl(' + hue + ',' + sat + '%,88%)';
+    c.fillStyle = 'hsl(' + (h % 360) + ',' + (36 + (h >> 9) % 20) + '%,82%)';
     c.fillRect(0, 0, SIZE, SIZE);
-
-    /* 平坦だと見分けがつかないので、内側にもう一枚だけ置く。角丸は24相当。 */
-    var pad = 76 + (h >> 5) % 44;
-    c.fillStyle = 'hsl(' + ((hue + 30 + (h >> 3) % 120) % 360) + ',' + sat + '%,78%)';
-    roundRect(c, pad, pad, SIZE - pad * 2, SIZE - pad * 2, 34);
-    c.fill();
 
     c.fillStyle = ink;
     c.textAlign = 'center';

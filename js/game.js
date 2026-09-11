@@ -48,7 +48,7 @@ window.NoDog = window.NoDog || {};
 
   var $ = function (id) { return document.getElementById(id); };
   var el = {};
-  ['stage', 'hud', 'life', 'stageName', 'stagePaws', 'qCount', 'score', 'combo',
+  ['stage', 'hud', 'life', 'stageName', 'qCount', 'score', 'combo',
    'footer', 'result', 'resultTitle', 'resultScore', 'resultReach', 'resultBody',
    'loading', 'note'].forEach(function (id) { el[id] = $(id); });
 
@@ -67,14 +67,14 @@ window.NoDog = window.NoDog || {};
     return getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   }
 
-  /* 1面は生成り、面が上がるごとに色温度を下げ、最終面だけ夜の紺に入れ替える。 */
+  /* 1面は生成り、面が上がるごとに色温度を下げ、最終面だけ夜の紺に入れ替える。
+     最終面の合図は夜に変わること自体で足りるので、他の演出は足さない。 */
   function applyStageColor(idx) {
     var paper = cssVar('--paper'), night = cssVar('--night');
     var last = idx >= STAGES.length - 1;
     document.body.classList.toggle('night', last);
     document.documentElement.style.setProperty(
       '--bg', last ? night : mix(paper, night, (idx / (STAGES.length - 2)) * 0.15));
-    el.stagePaws.hidden = !last;
   }
 
   /* --- 出題順 ----------------------------------------------------------- */
@@ -198,7 +198,7 @@ window.NoDog = window.NoDog || {};
     renderHud();
 
     var entry = deck[state.index];
-    draw.repaint = function () { draw.play(entry, currentRemain(), 0); };
+    draw.repaint = function () { draw.play(entry, currentRemain()); };
     cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(tick);
   }
@@ -210,7 +210,7 @@ window.NoDog = window.NoDog || {};
   function tick() {
     if (state.phase !== 'question') return;
     var remain = currentRemain();
-    draw.play(deck[state.index], remain, 0);
+    draw.play(deck[state.index], remain);
     if (remain <= 0) { judge(null); return; }
     rafId = requestAnimationFrame(tick);
   }
@@ -240,18 +240,14 @@ window.NoDog = window.NoDog || {};
     var lines = entry.answer === 'dog' ? TEXT.stampDog : TEXT.stampNot;
     var began = performance.now();
 
-    draw.repaint = function () {
-      draw.play(entry, remain, 0);
-      draw.stamp(lines, ok, 1);
-    };
+    draw.repaint = function () { draw.verdict(entry, remain, lines, ok, 1, 0); };
 
     (function frame(now) {
       var t = now === undefined ? 0 : now - began;
       var grow = reduced ? 1 : Math.min(1, t / GROW_MS);
       var shake = 0;
       if (!ok && !reduced && t < SHAKE_MS) shake = 3 * Math.sin(t / SHAKE_MS * Math.PI * 4);
-      draw.play(entry, remain, shake);
-      draw.stamp(lines, ok, grow);
+      draw.verdict(entry, remain, lines, ok, grow, shake);
       if (t < VERDICT_MS) rafId = requestAnimationFrame(frame);
     })(began);
 
@@ -322,7 +318,7 @@ window.NoDog = window.NoDog || {};
     el.resultScore.textContent = num(state.score);
     var reached = Math.min(STAGES.length - 1,
       Math.floor(Math.max(0, state.index - 1) / PER_STAGE));
-    el.resultReach.textContent = (reached + 1) + '面 ' + STAGES[reached].name + ' まで';
+    el.resultReach.textContent = (reached + 1) + '面 ' + STAGES[reached].name + ' でおしまい';
 
     el.resultBody.innerHTML = '';
     if (cleared) {
