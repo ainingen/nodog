@@ -99,14 +99,28 @@ window.NoDog = window.NoDog || {};
     return a;
   }
 
+  /* ダミーの語を入れた袋を面ごとに作る。文字の面は専用の語彙を使う。
+     カウンタで順に取ると毎回同じ語しか出ず、用意した語彙の大半が死蔵
+     されるので、面に入るたびにシャッフルして引く（buildDeck と同じ考え）。 */
+  function makeBag(level) {
+    var words = STAGES[level - 1].words;
+    var src = {
+      dog: words ? assets.WORD_DOGS : assets.DUMMY_DOGS,
+      not: words ? assets.WORD_NOTS : assets.DUMMY_NOTS
+    };
+    return { src: src, dog: shuffle(src.dog.slice()), not: shuffle(src.not.slice()) };
+  }
+
+  /* 袋が空になったら詰め直す。語数が問数に足りなくても止まらない。 */
+  function drawLabel(bag, answer) {
+    if (!bag[answer].length) bag[answer] = shuffle(bag.src[answer].slice());
+    return bag[answer].pop();
+  }
+
   var dummySeq = 0;
-  function makeDummy(level, answer) {
+  function makeDummy(level, answer, bag) {
     var stage = STAGES[level - 1];
-    /* 文字の面は専用の語彙を使う。写真は一切出さない。 */
-    var pool = stage.words
-      ? (answer === 'dog' ? assets.WORD_DOGS : assets.WORD_NOTS)
-      : (answer === 'dog' ? assets.DUMMY_DOGS : assets.DUMMY_NOTS);
-    var label = pool[dummySeq % pool.length];
+    var label = drawLabel(bag, answer);
     dummySeq++;
     return {
       filename: answer + '_d' + dummySeq + '_' + level,
@@ -135,9 +149,10 @@ window.NoDog = window.NoDog || {};
 
       var picked = pool.slice(0, PER_STAGE);
       while (picked.length < PER_STAGE && pool.length > 0) picked.push(pool[picked.length % pool.length]);
+      var bag = makeBag(lv);
       var i = 0;
       while (picked.length < PER_STAGE) {
-        picked.push(makeDummy(lv, (i + lv) % 2 === 0 ? 'dog' : 'not'));
+        picked.push(makeDummy(lv, (i + lv) % 2 === 0 ? 'dog' : 'not', bag));
         i++;
       }
       deck = deck.concat(shuffle(picked));
