@@ -44,6 +44,89 @@
 - プロトタイプは犬10枚・犬以外10枚から。素材はMidjourney生成。
 - 元PNGは raw/ に置き、webp変換後のみコミット。
 
+### images_master.csv（画像の管理表）
+
+`tools/process_raw.py` が読む管理表。1行＝1枚。Midjourney のファイル名にはプロンプトの冒頭しか残らないので、この表でプロンプトと出題情報を結びつける。
+
+| 列 | 要否 | 意味 |
+|---|---|---|
+| `prompt` | **必須** | Midjourney に投げたプロンプト。ファイル名との照合に使う。無いと起動時に停止 |
+| `filename` | **必須** | 出力する webp の名前。拡張子は省略可（`dog_012_poodle` → `dog_012_poodle.webp`）。列が無いと停止、値が空の行はその画像だけ失敗扱い |
+| `answer` | 任意※ | `dog` / `not`。**ゲームはここだけを見る。ファイル名は見ない** |
+| `level` | 任意※ | 面 1〜5 |
+| `trick` | 任意※ | ひっかけ度 1〜3 |
+| `generated` | 自動 | 変換済みなら `1`。列が無ければ自動で追加される。手で書かなくてよい |
+
+※ 無くても変換は走るが `images.csv` が空欄になり、ゲーム側（`js/assets.js`）が読み飛ばして出題されない。実質必須。
+
+上記以外の列（memo など）は自由に足してよい。中身は見ないが書き戻しても消えない。値にカンマを含めるときは `"` で囲む。
+
+```csv
+prompt,filename,answer,level,trick,memo
+"a toy poodle that looks like karaage, deep fried, 8k",not_012_karaage_poodle,not,3,3,主役
+"a wet golden retriever shaking, motion blur",dog_013_wet_golden,dog,2,2,
+"a brown mop on a wooden floor",not_014_mop,not,4,3,尻面の候補
+```
+
+### 手元での実行手順（Windows / PowerShell）
+
+```powershell
+# 初回だけ
+pip install Pillow
+
+# 1. Midjourney の PNG を raw\ 直下に、ファイル名を変えずに置く
+#    （サブフォルダは見ない。raw\ は .gitignore 済みでコミットされない）
+
+# 2. images_master.csv に prompt と filename を書く（Excel なら UTF-8 CSV で保存）
+
+# 3. まず何も書かずに結果だけ見る
+py -3 tools\process_raw.py --dry-run
+
+# 4. 問題なければ実行
+py -3 tools\process_raw.py
+
+# 5. 結果を確認してコミット
+git add img images.csv images_master.csv
+git commit -m "画像を追加"
+```
+
+実行すると変わるファイル:
+
+| ファイル | どうなる |
+|---|---|
+| `img\*.webp` | 中央を正方形に切って長辺512pxの webp（品質80）で作られる。元より小さくは拡大しない |
+| `images.csv` | `generated=1` の行だけで作り直される。ゲームが読むのはこれ |
+| `images_master.csv` | 変換できた行の `generated` が `1` になる。他の列は触らない |
+| `img\_dup\` | 同じ行に候補が複数あったとき、採用した1枚以外が**raw\ から移動**される |
+| `raw\` | 採用された画像・照合できなかった画像はそのまま残る |
+
+主なオプション: `--dry-run`（書かずに表示）`--force`（既存 webp も作り直す）`--size 512` `--quality 80` `--prefix ainingen`（ファイル名先頭で削るアカウント名）
+
+### 照合できなかったときの挙動
+
+**エラーで全体が止まることはない。** 処理できる画像は処理し、残りを最後に一覧で報告する。終了コードは、1枚でも未照合・失敗があれば `1`、全部さばけたら `0`。
+
+| 状況 | 挙動 |
+|---|---|
+| master に無い画像（prompt が一致しない） | **スキップ**。`raw\` に残したまま「照合できなかったファイル」に一覧表示 |
+| ファイル名からプロンプト冒頭を取り出せない（`IMG_2931.png` など8文字未満） | **スキップ**。同上 |
+| prompt が複数行に一致して絞れない | **スキップ**。一致した行番号を表示（プロンプトの冒頭が似ている行を修正する） |
+| 同じ行に画像が複数（`_0` `_1` などの派生） | 名前順の**先頭1枚だけ採用**。残りは `img\_dup\` へ**移動**（消しはしない） |
+| master の行の `filename` が空 | その1枚だけ「失敗」。他は続行 |
+| 変換自体が失敗（壊れたPNGなど） | その1枚だけ「失敗」。他は続行 |
+| `images_master.csv` が無い／`prompt`・`filename` 列が無い | **ここだけは即停止**（終了コード 2）。1枚も処理しない |
+| `raw\` が無い | 空の `raw\` を作って終了 |
+
+照合は「master の prompt が、ファイル名から取り出した冒頭で始まる」で判定する。英数字以外は空白に潰して大小無視で比べるので、記号や空白の違いは無視される。プロンプトを後から書き換えると一致しなくなるので、**master の prompt は Midjourney に投げた文面のまま残す**。
+
+### 気をつける点
+
+- **`answer` 列とファイル名が食い違っても検出されない。** ゲームは `answer` 列だけを見るので、`not_012_...` に `answer,dog` と書くと犬として出題される。
+- **Excel の `TRUE` は効かない。** `generated` が真と見なされるのは `1` `true` `True` のみ。Excel が真偽値を `TRUE` と書くと未変換扱いになり `images.csv` から落ちる。数値の `1` で書く。
+- `level` が 1〜5 の外、`answer` が `dog`/`not` 以外の行は、`js/assets.js` が**黙って読み飛ばす**。画像が出題されないときはまずここを疑う。
+- 一度 `generated=1` になった行は、元のPNGを消しても `images.csv` に残る。取り下げるときは master の `generated` を `0` に戻す。
+- `img\_dup\` に `.png` 以外（`.jpg`/`.webp`）が入るとコミット対象になる。中身を確認して消すか `raw\` に戻す。
+
 ## 見た目
 - 地は生成り（#FFF8E7）、文字はこげ茶（#4A3728）。黒と灰色は使わない。
 - 書体は Zen Maru Gothic（OFL）。500 と 700 の2ウェイトだけ。
