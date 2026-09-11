@@ -43,6 +43,23 @@
 - プロトタイプは犬10枚・犬以外10枚から。素材はMidjourney生成。
 - 元PNGは raw/ に置き、webp変換後のみコミット。
 
+### raw/ の処理
+元画像は `raw/<面>/<answer>[_t<trick>]_<slug>.png` の形で置く。`answer` は dog / not、trick 省略時は 1。面はファイル名に `_l<N>` を付けても指定できる。
+
+```
+raw/1/dog_poodle.png         -> 面1 / 犬     / trick=1
+raw/3/not_t3_karaage.png     -> 面3 / 犬以外 / trick=3
+raw/dog_l5_t3_oshiri.png     -> 面5 / 犬     / trick=3
+```
+
+```sh
+pip install Pillow
+python3 tools/process_raw.py            # 変換して images.csv を更新
+python3 tools/process_raw.py --dry-run  # 確認だけ
+```
+
+webp（既定 512px 正方形・品質82）を `img/` に出し、`images.csv` を書き直して、面ごとの問数・ひっかけ率を README の構成表と突き合わせて表示する。通番は既存 `images.csv` から引き継ぐので再実行しても既存画像の番号は動かない。出力が元画像より新しければ変換を飛ばす（`--force` で強制）。
+
 ## 技術
 - 単一HTML/JS、PLiCy制約準拠（容量・外部通信なし）。
 - 画像はwebp、正方形、事前プリロード。
