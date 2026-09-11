@@ -37,7 +37,7 @@ DEFAULT_RAW = "raw"
 DEFAULT_IMG = "img"
 DEFAULT_MASTER = "images_master.csv"
 DEFAULT_OUT = "images.csv"
-DEFAULT_PREFIX = "ainingen"
+DEFAULT_PREFIX = "TIMELINE_404"
 DEFAULT_QUALITY = 80
 DEFAULT_SIZE = 512
 
@@ -101,9 +101,10 @@ def extract_head(stem, prefix):
 
     tokens = tokens[:cut]
 
-    # 先頭のアカウント名を落とす。
-    if prefix and tokens and tokens[0].lower() == prefix.lower():
-        tokens = tokens[1:]
+    # 先頭のアカウント名を落とす。TIMELINE_404 のように _ を含む名前も扱う。
+    pre = [t for t in (prefix or "").split("_") if t != ""]
+    if pre and [t.lower() for t in tokens[:len(pre)]] == [t.lower() for t in pre]:
+        tokens = tokens[len(pre):]
 
     return "_".join(tokens), confident
 
