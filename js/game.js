@@ -14,13 +14,23 @@ window.NoDog = window.NoDog || {};
   /* --- 設定 ------------------------------------------------------------ */
 
   var STAGES = [
-    { name: '入門',       limit: 2.00, targetTrick: 1 },
-    { name: 'なんとなく犬', limit: 1.50, targetTrick: 1 },
-    { name: '茶色い奴ら',  limit: 1.00, targetTrick: 2 },
-    { name: '尻',         limit: 0.75, targetTrick: 2 },
-    { name: 'わんこ地獄',  limit: 0.50, targetTrick: 3 }
+    { name: '入門',         limit: 2.00, targetTrick: 1 },
+    { name: 'なんとなく犬',   limit: 1.50, targetTrick: 2 },
+    { name: '茶色い奴ら',    limit: 1.20, targetTrick: 2 },
+    { name: '尻',           limit: 0.90, targetTrick: 3 },
+    { name: 'わんこ地獄',    limit: 0.60, targetTrick: 3, night: true },
+    /* 文字だけの面。読ませるので 0.6 秒では足りず、時間を戻してある。 */
+    { name: 'もじもじわんこ', limit: 1.20, targetTrick: 3, words: true }
   ];
-  var PER_STAGE = 12;
+
+  /* 地が紺になる面。ここへ向けて地を沈め、越えた面は明るい地に戻す。
+     最終面ではなく「いちばんきつい面」が夜。 */
+  var NIGHT_IDX = (function () {
+    for (var i = 0; i < STAGES.length; i++) if (STAGES[i].night) return i;
+    return STAGES.length - 1;
+  })();
+
+  var PER_STAGE = 6;
   var MAX_LIFE = 3;
   var VERDICT_MS = 300;
   var GROW_MS = 120;     // スタンプが 1.4 倍から戻るまで
@@ -71,10 +81,12 @@ window.NoDog = window.NoDog || {};
      最終面の合図は夜に変わること自体で足りるので、他の演出は足さない。 */
   function applyStageColor(idx) {
     var paper = cssVar('--paper'), night = cssVar('--night');
-    var last = idx >= STAGES.length - 1;
-    document.body.classList.toggle('night', last);
+    var isNight = idx === NIGHT_IDX;
+    document.body.classList.toggle('night', isNight);
+    /* 夜に向かって少しずつ沈める。夜を越えたら明るい地に戻す。 */
+    var t = (idx < NIGHT_IDX && NIGHT_IDX > 1) ? (idx / (NIGHT_IDX - 1)) * 0.15 : 0;
     document.documentElement.style.setProperty(
-      '--bg', last ? night : mix(paper, night, (idx / (STAGES.length - 2)) * 0.15));
+      '--bg', isNight ? night : mix(paper, night, t));
   }
 
   /* --- 出題順 ----------------------------------------------------------- */
@@ -89,12 +101,16 @@ window.NoDog = window.NoDog || {};
 
   var dummySeq = 0;
   function makeDummy(level, answer) {
-    var pool = answer === 'dog' ? assets.DUMMY_DOGS : assets.DUMMY_NOTS;
+    var stage = STAGES[level - 1];
+    /* 文字の面は専用の語彙を使う。写真は一切出さない。 */
+    var pool = stage.words
+      ? (answer === 'dog' ? assets.WORD_DOGS : assets.WORD_NOTS)
+      : (answer === 'dog' ? assets.DUMMY_DOGS : assets.DUMMY_NOTS);
     var label = pool[dummySeq % pool.length];
     dummySeq++;
     return {
       filename: answer + '_d' + dummySeq + '_' + level,
-      answer: answer, level: level, trick: STAGES[level - 1].targetTrick,
+      answer: answer, level: level, trick: stage.targetTrick,
       dummy: true, label: label
     };
   }
@@ -106,8 +122,8 @@ window.NoDog = window.NoDog || {};
     return Math.max(0, Math.abs(trick - target) - 1);
   }
 
-  /* 各面 12 問。実画像が足りない分はダミーで埋めるので、
-     images.csv が空でも 60 問の一本道が通る。 */
+  /* 各面 6 問。実画像が足りない分はダミーで埋めるので、
+     images.csv が空でも 36 問の一本道が通る。 */
   function buildDeck(entries) {
     var deck = [];
     for (var lv = 1; lv <= STAGES.length; lv++) {
@@ -335,7 +351,7 @@ window.NoDog = window.NoDog || {};
 
     el.resultBody.innerHTML = '';
     if (cleared) {
-      /* 完全クリアは誤答一覧の代わりに全 60 枚を格子で並べる。 */
+      /* 完全クリアは誤答一覧の代わりに全 36 枚を格子で並べる。 */
       var grid = document.createElement('div');
       grid.className = 'grid';
       deck.forEach(function (e) {

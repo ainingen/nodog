@@ -16,7 +16,7 @@ window.NoDog = window.NoDog || {};
   var IMG_DIR = 'img/';
   var SIZE = 720;
 
-  /* ダミー画像のお題。images.csv が空でも 60 問の一本道を通すために使う。
+  /* ダミー画像のお題。images.csv が空でも 36 問の一本道を通すために使う。
      ここの文字は tools/build_font.py がフォントのサブセットに拾う。 */
   var DUMMY_DOGS = ['トイプードル', 'しばいぬ', 'ゴールデン', 'チワワ', 'パグ',
                     'ぬれた犬', 'けだま', 'ボルゾイ', 'シーズー', 'ダックス',
@@ -24,6 +24,13 @@ window.NoDog = window.NoDog || {};
   var DUMMY_NOTS = ['からあげ', 'モップ', '食パン', 'ぬいぐるみ', 'クロワッサン',
                     'ざぶとん', 'たわし', '子ヤギ', 'アルパカ', 'もうふ',
                     'チキン', '茶色い何か'];
+
+  /* 6面「もじもじわんこ」の語彙。写真を使わず、この文字だけで出題する。
+     犬と分かりにくい犬種名と、名前に犬が入っているだけのものを混ぜる。 */
+  var WORD_DOGS = ['シーズー', 'ボルゾイ', 'サルーキ', 'パピヨン',
+                   'チャウチャウ', 'コモンドール', 'ウィペット'];
+  var WORD_NOTS = ['わんこそば', '犬張子', '犬走り', '狛犬', 'ホットドッグ',
+                   '犬釘', 'いぬのおまわりさん', '負け犬', '犬かき'];
 
   /* --- CSV ------------------------------------------------------------ */
 
@@ -173,6 +180,8 @@ window.NoDog = window.NoDog || {};
   NoDog.assets = {
     DUMMY_DOGS: DUMMY_DOGS,
     DUMMY_NOTS: DUMMY_NOTS,
+    WORD_DOGS: WORD_DOGS,
+    WORD_NOTS: WORD_NOTS,
     loadCsv: loadCsv,
     prepare: prepare
   };
