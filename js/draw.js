@@ -155,7 +155,7 @@ window.NoDog = window.NoDog || {};
        クリップが効いているので、太さ2倍で描くと外半分が切り落とされて
        ちょうど 1px が内側に残る。写真と同じ角丸パスをそのまま使う。 */
     ctx.lineWidth = px(1) * 2;
-    ctx.strokeStyle = token('--milk') || '#EFE3CC';
+    ctx.strokeStyle = token('--edge') || '#D2C8B7';
     roundRectPath(ctx, g.x, g.y, g.size, g.size, g.r);
     ctx.stroke();
 
