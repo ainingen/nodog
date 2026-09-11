@@ -3,3 +3,4 @@ raw/
 *.psd
 .DS_Store
 Thumbs.db
+tools/.fontcache/
