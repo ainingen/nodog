@@ -124,7 +124,11 @@ window.NoDog = window.NoDog || {};
      サムネが毎回変わると困るので、ここだけはランダムにしない。 */
   function pickCover(entries) {
     var real = entries.slice().sort(function (a, b) {
-      return (b.trick - a.trick) || (a.filename < b.filename ? -1 : 1);
+      if (b.trick !== a.trick) return b.trick - a.trick;
+      /* 同点なら「犬に見える犬じゃないもの」を先に取る。
+         表紙が誰の目にも犬だと『これ、わんこ？』が問いにならない。 */
+      if (a.answer !== b.answer) return a.answer === 'not' ? -1 : 1;
+      return a.filename < b.filename ? -1 : 1;
     });
     if (real.length) return real[0];
     return { filename: 'cover_karaage', answer: 'not', level: 1, trick: 3,

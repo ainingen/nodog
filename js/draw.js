@@ -150,6 +150,15 @@ window.NoDog = window.NoDog || {};
       ctx.fillStyle = token('--track') || '#EFE3CC';
       ctx.fillRect(g.x, g.y, g.size, g.size);
     }
+
+    /* 明るい写真は縁がクリーム地に溶けるので、内側に1本だけ線を置く。
+       クリップが効いているので、太さ2倍で描くと外半分が切り落とされて
+       ちょうど 1px が内側に残る。写真と同じ角丸パスをそのまま使う。 */
+    ctx.lineWidth = px(1) * 2;
+    ctx.strokeStyle = token('--milk') || '#EFE3CC';
+    roundRectPath(ctx, g.x, g.y, g.size, g.size, g.r);
+    ctx.stroke();
+
     ctx.restore();
   }
 
@@ -231,7 +240,7 @@ window.NoDog = window.NoDog || {};
     ctx.save();
     roundRectPath(ctx, g.x, g.y, g.size, g.size, g.r);
     ctx.clip();
-    ctx.fillStyle = token('--paper') || '#FFF8E7';
+    ctx.fillStyle = token('--milk') || '#EFE3CC';
     ctx.fillRect(g.x, bandY, g.size, bandH);
 
     ctx.fillStyle = token('--ink') || '#4A3728';
